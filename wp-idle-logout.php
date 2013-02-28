@@ -41,9 +41,10 @@ function wp_idle_logout_check_for_inactivity() {
 
 		if ( $time ) {
 			if ( (int) $time + WP_IDLE_LOGOUT_MAX_INACTIVITY_SECONDS < time() ) {
+				wp_redirect( wp_login_url() . '?idle=1' );
 				wp_logout();
 				wp_idle_logout_clear_activity_meta( $user_id );
-				wp_redirect( home_url() );
+				exit;
 			} else {
 				update_user_meta( $user_id, 'wp_idle_logout_last_active_time', time() );
 			}
@@ -70,3 +71,19 @@ function wp_idle_logout_clear_activity_meta( $user_id = false ) {
 	delete_user_meta( $user_id, 'wp_idle_logout_last_active_time' );
 }
 add_action( 'clear_auth_cookie', 'wp_idle_logout_clear_activity_meta' );
+
+
+/**
+ * Show Notification on Logout
+ *
+ * Overwrites the default WP login message, when 'idle' query string is present
+ *
+ */
+function wp_idle_logout_idle_message( $message ) {
+	if( !empty( $_GET['idle'] ) ) {
+        return '<p class="message">You have been logged out due to inactivity.</p>';
+	} else {
+		return $message;
+	}
+}
+add_filter( 'login_message', 'wp_idle_logout_idle_message' );
