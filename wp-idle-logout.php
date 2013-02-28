@@ -2,7 +2,7 @@
 /*
 	Plugin Name: Idle Logout
 	Description: Automatically logs out inactive users.
-	Version: 1.0.0
+	Version: 0.9.0
 	Author: Cooper Dukes @INNEO
 	Author URI: http://inneosg.com/
 	License: GPL2
