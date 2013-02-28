@@ -23,7 +23,7 @@
 	Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-define( 'CT_MAX_INACTIVITY_SECONDS', 60*60 );
+define( 'WP_IDLE_LOGOUT_MAX_INACTIVITY_SECONDS', 60*60 );
 
 /**
  * Checks for User Idleness
@@ -40,7 +40,7 @@ function wp_idle_logout_check_for_inactivity() {
 		$time = get_user_meta( $user_id, 'wp_idle_logout_last_active_time', true );
 
 		if ( $time ) {
-			if ( (int) $time + CT_MAX_INACTIVITY_SECONDS < time() ) {
+			if ( (int) $time + WP_IDLE_LOGOUT_MAX_INACTIVITY_SECONDS < time() ) {
 				wp_logout();
 				wp_idle_logout_clear_activity_meta( $user_id );
 				wp_redirect( home_url() );
