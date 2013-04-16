@@ -2,7 +2,7 @@
 /*
 	Plugin Name: Idle Logout
 	Description: Automatically logs out inactive users.
-	Version: 0.9.0
+	Version: 1.0
 	Author: Cooper Dukes @INNEO
 	Author URI: http://inneosg.com/
 	License: GPL2
@@ -23,67 +23,190 @@
 	Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-define( 'WP_IDLE_LOGOUT_MAX_INACTIVITY_SECONDS', 60*60 );
 
-/**
- * Checks for User Idleness
- *
- * Tests if the user is logged in on 'init'.
- * If true, checks if the 'wp_idle_logout_last_active_time' meta is set.
- * If it isn't, the meta is created for the current time.
- * If it is, the timestamp is checked against the inactivity period.
- *
- */
-function wp_idle_logout_check_for_inactivity() {
-	if ( is_user_logged_in() ) {
-		$user_id = get_current_user_id();
-		$time = get_user_meta( $user_id, 'wp_idle_logout_last_active_time', true );
+class WP_Idle_Logout {
+	/**
+	 * Name space
+	 */
+	const ID = 'wp_idle_logout_';
 
-		if ( $time ) {
-			if ( (int) $time + WP_IDLE_LOGOUT_MAX_INACTIVITY_SECONDS < time() ) {
-				wp_redirect( wp_login_url() . '?idle=1' );
-				wp_logout();
-				wp_idle_logout_clear_activity_meta( $user_id );
-				exit;
-			} else {
-				update_user_meta( $user_id, 'wp_idle_logout_last_active_time', time() );
-			}
+	/**
+	 * Default idle time
+	 */
+	const default_idle_time = 3600;
 
-		} else {
-			update_user_meta( $user_id, 'wp_idle_logout_last_active_time', time() );
+	/**
+	 * Default idle message
+	 */
+	const default_idle_message = 'You have been logged out due to inactivity.';
+
+
+	public function __construct() {;
+		add_action( 'init', array(&$this, 'check_for_inactivity') );
+		add_action( 'clear_auth_cookie', array(&$this, 'clear_activity_meta') );
+		add_filter( 'login_message', array(&$this, 'idle_message') );
+
+		add_action( 'admin_menu', array(&$this, 'options_menu') );
+		add_action( 'admin_init', array(&$this, 'initialize_options') );
+	}
+
+
+	private function get_idle_time_setting() {
+		$time = get_option(self::ID . '_idle_time');
+		if( empty($time) || !is_numeric($time) ) {
+			$time = self::default_idle_time;
 		}
+		return (int) $time;
 	}
-}
-add_action( 'init', 'wp_idle_logout_check_for_inactivity' );
 
 
-/**
- * Delete Inactivity Meta
- *
- * Deletes the 'wp_idle_logout_last_active_time' meta when called.
- * Used on normal logout and on idleness logout.
- *
- */
-function wp_idle_logout_clear_activity_meta( $user_id = false ) {
-	if ( !$user_id ) {
-		$user_id = get_current_user_id();
-	}
-	delete_user_meta( $user_id, 'wp_idle_logout_last_active_time' );
-}
-add_action( 'clear_auth_cookie', 'wp_idle_logout_clear_activity_meta' );
-
-
-/**
- * Show Notification on Logout
- *
- * Overwrites the default WP login message, when 'idle' query string is present
- *
- */
-function wp_idle_logout_idle_message( $message ) {
-	if( !empty( $_GET['idle'] ) ) {
-        return '<p class="message">You have been logged out due to inactivity.</p>';
-	} else {
+	private function get_idle_message_setting() {
+		$message = nl2br( get_option(self::ID . '_idle_message') );
+		if( empty($message) ) {
+			$message = self::default_idle_message;
+		}
 		return $message;
 	}
+
+
+	/**
+	 * Checks for User Idleness
+	 *
+	 * Tests if the user is logged in on 'init'.
+	 * If true, checks if the self::ID . '_last_active_time' meta is set.
+	 * If it isn't, the meta is created for the current time.
+	 * If it is, the timestamp is checked against the inactivity period.
+	 *
+	 */
+	public function check_for_inactivity() {
+		if ( is_user_logged_in() ) {
+			$user_id = get_current_user_id();
+			$time = get_user_meta( $user_id, self::ID . '_last_active_time', true );
+
+			if ( $time ) {
+				if ( (int) $time + $this->get_idle_time_setting() < time() ) {
+					wp_redirect( wp_login_url() . '?idle=1' );
+					wp_logout();
+					$this->clear_activity_meta( $user_id );
+					exit;
+				} else {
+					update_user_meta( $user_id, self::ID . '_last_active_time', time() );
+				}
+			} else {
+				update_user_meta( $user_id, self::ID . '_last_active_time', time() );
+			}
+		}
+	}
+
+
+	/**
+	 * Delete Inactivity Meta
+	 *
+	 * Deletes the self::ID . '_last_active_time' meta when called.
+	 * Used on normal logout and on idleness logout.
+	 *
+	 */
+	private function clear_activity_meta( $user_id = false ) {
+		if ( !$user_id ) {
+			$user_id = get_current_user_id();
+		}
+		delete_user_meta( $user_id, self::ID . '_last_active_time' );
+	}
+
+
+	/**
+	 * Show Notification on Logout
+	 *
+	 * Overwrites the default WP login message, when 'idle' query string is present
+	 *
+	 */
+	public function idle_message( $message ) {
+		if( !empty( $_GET['idle'] ) ) {
+	        return $message . '<p class="message">' . $this->get_idle_message_setting() . '</p>';
+		} else {
+			return $message;
+		}
+	}
+
+
+
+	public function options_menu() {
+	    add_options_page(
+	    	'WP Idle Logout Options',
+	    	'Idle Logout',
+	    	'manage_options',
+	    	self::ID . '_options',
+	    	array(&$this, 'options_page')
+	    );
+	}
+
+
+	public function options_page() {
+		echo'<div class="wrap"> ';
+			echo'<h2>WP Idle Logout Options</h2>';
+			echo'<form method="post" action="options.php">';
+				settings_fields( self::ID . '_options' );
+				do_settings_sections( self::ID . '_options' );
+				submit_button();
+			echo'</form>';
+		echo'</div>';
+	}
+
+
+
+	public function initialize_options() {
+		add_settings_section(
+			self::ID . '_options_section',
+			null,
+			null,
+			self::ID . '_options'
+		);
+
+		add_option( self::ID . '_idle_time' );
+
+	 	add_settings_field(
+	 		self::ID . '_idle_time',
+			'Idle Time',
+			array(&$this, 'render_idle_time_option'),
+			self::ID . '_options',
+			self::ID . '_options_section'
+		);
+
+		register_setting(
+			self::ID . '_options',
+			self::ID . '_idle_time',
+			'absint'
+		);
+
+		add_option( self::ID . '_idle_message' );
+
+	 	add_settings_field(
+	 		self::ID . '_idle_message',
+			'Idle Message',
+			array(&$this, 'render_idle_message_option'),
+			self::ID . '_options',
+			self::ID . '_options_section'
+		);
+
+		register_setting(
+			self::ID . '_options',
+			self::ID . '_idle_message',
+			'wp_kses_post'
+		);
+	}
+
+
+	public function render_idle_time_option() {
+		echo '<input type="text" name="' . self::ID . '_idle_time" class="small-text" value="' . get_option(self::ID . '_idle_time') . '" />';
+		echo '<p class="description">How long (in seconds) should users be idle for before being logged out?</p>';
+	}
+
+
+	public function render_idle_message_option() {
+		echo '<textarea name="' . self::ID . '_idle_message" class="regular-text" rows="5" cols="50">' . get_option(self::ID . '_idle_message') . ' </textarea>';
+		echo '<p class="description">Overrides the default message shown to idle users when redirected to the login screen.</p>';
+	}
 }
-add_filter( 'login_message', 'wp_idle_logout_idle_message' );
+
+
+$WP_Idle_Logout = new WP_Idle_Logout();
