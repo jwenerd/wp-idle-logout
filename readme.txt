@@ -1,10 +1,9 @@
 === WP Idle Logout ===
 Contributors: cdukes
-Donate link: http://inneosg.com/
 Tags: idle, logout, inactive, autologout, auto-logout, security
 Requires at least: 3.5
 Tested up to: 3.5
-Stable tag: trunk
+Stable tag: 1.0.0
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,5 +23,5 @@ Automatically logs out inactive users.
 
 == Changelog ==
 
-= 1.0 =
+= 1.0.0 =
 * Initial version.
