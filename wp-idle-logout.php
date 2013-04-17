@@ -2,7 +2,7 @@
 /*
 	Plugin Name: Idle Logout
 	Description: Automatically logs out inactive users.
-	Version: 1.0
+	Version: 1.0.1
 	Author: Cooper Dukes @INNEO
 	Author URI: http://inneosg.com/
 	License: GPL2
@@ -122,7 +122,7 @@ class WP_Idle_Logout {
 	 * Used on normal logout and on idleness logout.
 	 *
 	 */
-	private function clear_activity_meta( $user_id = false ) {
+	public function clear_activity_meta( $user_id = false ) {
 		if ( !$user_id ) {
 			$user_id = get_current_user_id();
 		}
