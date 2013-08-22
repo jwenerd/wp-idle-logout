@@ -2,7 +2,7 @@
 /*
 	Plugin Name: Idle Logout
 	Description: Automatically logs out inactive users.
-	Version: 1.0.1
+	Version: 1.0.2
 	Author: Cooper Dukes @INNEO
 	Author URI: http://inneosg.com/
 	License: GPL2
@@ -45,6 +45,7 @@ class WP_Idle_Logout {
 	 *
 	 */
 	public function __construct() {;
+		add_action( 'wp_login', array(&$this, 'login_key_refresh'), 10, 2 );
 		add_action( 'init', array(&$this, 'check_for_inactivity') );
 		add_action( 'clear_auth_cookie', array(&$this, 'clear_activity_meta') );
 		add_filter( 'login_message', array(&$this, 'idle_message') );
@@ -83,6 +84,21 @@ class WP_Idle_Logout {
 			$message = self::default_idle_message;
 		}
 		return $message;
+	}
+
+	/**
+	 * Refreshes the meta key on login
+	 *
+	 * Tests if the user is logged in on 'init'.
+	 * If true, checks if the 'last_active_time' meta is set.
+	 * If it isn't, the meta is created for the current time.
+	 * If it is, the timestamp is checked against the inactivity period.
+	 *
+	 */
+	public function login_key_refresh( $user_login, $user ) {
+
+		update_user_meta( $user->ID, self::ID . '_last_active_time', time() );
+
 	}
 
 	/**
