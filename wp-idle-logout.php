@@ -41,6 +41,11 @@ class WP_Idle_Logout {
 	const default_idle_message = 'You have been logged out due to inactivity.';
 
 	/**
+	 * Default idle message
+	 */
+	const default_silent_logout = 0;
+
+	/**
 	 * Add actions and filters
 	 *
 	 */
@@ -50,8 +55,12 @@ class WP_Idle_Logout {
 		add_action( 'clear_auth_cookie', array(&$this, 'clear_activity_meta') );
 		add_filter( 'login_message', array(&$this, 'idle_message') );
 
-		add_action( 'admin_menu', array(&$this, 'options_menu') );
+		add_action( is_multisite() ? 'network_admin_menu' : 'admin_menu', array(&$this, 'options_menu') );
 		add_action( 'admin_init', array(&$this, 'initialize_options') );
+	
+		if(is_network_admin() && isset($_POST['option_page']) && $_POST['option_page'] == self::ID.'_options' ){
+			add_action('admin_init', array(&$this, 'update_network_settings'));
+		}
 	}
 
 	/**
@@ -63,7 +72,7 @@ class WP_Idle_Logout {
 	 *
 	 */
 	private function get_idle_time_setting() {
-		$time = get_option(self::ID . '_idle_time');
+		$time = get_site_option(self::ID . '_idle_time');
 		if ( empty($time) || !is_numeric($time) ) {
 			$time = self::default_idle_time;
 		}
@@ -79,7 +88,7 @@ class WP_Idle_Logout {
 	 *
 	 */
 	private function get_idle_message_setting() {
-		$message = nl2br( get_option(self::ID . '_idle_message') );
+		$message = nl2br( get_site_option(self::ID . '_idle_message') );
 		if ( empty($message) ) {
 			$message = self::default_idle_message;
 		}
@@ -116,11 +125,13 @@ class WP_Idle_Logout {
 			$time = get_user_meta( $user_id, self::ID . '_last_active_time', true );
 
 			if ( is_numeric($time) ) {
-				if ( (int) $time + $this->get_idle_time_setting() < time() ) {
-					wp_redirect( wp_login_url() . '?idle=1' );
-					wp_logout();
+				if ( (int) $time + $this->get_idle_time_setting() < time() ) {				
+					wp_clear_auth_cookie();
 					$this->clear_activity_meta( $user_id );
-					exit;
+					if(get_site_option(self::ID . '_silent_logout' == 0)){
+						wp_redirect( wp_login_url() . '?idle=1' );
+						exit;
+					}
 				} else {
 					update_user_meta( $user_id, self::ID . '_last_active_time', time() );
 				}
@@ -165,13 +176,26 @@ class WP_Idle_Logout {
 	 *
 	 */
 	public function options_menu() {
-		add_options_page(
-			'WP Idle Logout Options',
-			'Idle Logout',
-			'manage_options',
-			self::ID . '_options',
-			array(&$this, 'options_page')
-		);
+		
+		if(is_network_admin()){
+			add_submenu_page(
+				'settings.php', 
+				'WP Idle Logout Options', 
+				'Idle Logout', 
+				'manage_sites', 
+				self::ID . '_options',
+				array(&$this, 'options_page')
+			);
+
+		}else {
+			add_options_page(
+				'WP Idle Logout Options',
+				'Idle Logout',
+				'manage_options',
+				self::ID . '_options',
+				array(&$this, 'options_page')
+			);
+		}
 	}
 
 	/**
@@ -180,10 +204,16 @@ class WP_Idle_Logout {
 	 *
 	 */
 	public function options_page() {
+		$url = is_network_admin() ? 'settings.php?page='.self::ID.'_options' : 'options.php';
+
+		if(is_network_admin() && $_GET['updated'] == 'true')
+			echo '<div id="message" class="updated"><p>'._( 'Options saved.' ).'</p></div>';
+		
 		echo'<div class="wrap"> ';
 			echo'<h2>WP Idle Logout Options</h2>';
-			echo'<form method="post" action="options.php">';
+			echo'<form method="post" action="'. $url .'">';
 				settings_fields( self::ID . '_options' );
+			echo '<!-- sections -->';
 				do_settings_sections( self::ID . '_options' );
 				submit_button();
 			echo'</form>';
@@ -203,7 +233,7 @@ class WP_Idle_Logout {
 			self::ID . '_options'
 		);
 
-		add_option( self::ID . '_idle_time' );
+		add_site_option( self::ID . '_idle_time', self::default_idle_time );
 
 		add_settings_field(
 			self::ID . '_idle_time',
@@ -219,7 +249,7 @@ class WP_Idle_Logout {
 			'absint'
 		);
 
-		add_option( self::ID . '_idle_message' );
+		add_site_option( self::ID . '_idle_message', self::default_idle_message );
 
 		add_settings_field(
 			self::ID . '_idle_message',
@@ -234,6 +264,54 @@ class WP_Idle_Logout {
 			self::ID . '_idle_message',
 			'wp_kses_post'
 		);
+
+
+		add_site_option( self::ID . '_silent_logout', self::default_silent_logout );
+
+		add_settings_field(
+			self::ID . '_silent_logout',
+			'Idle Message',
+			array(&$this, 'render_silent_logout_option'),
+			self::ID . '_options',
+			self::ID . '_options_section'
+		);
+
+		register_setting(
+			self::ID . '_options',
+			self::ID . '_silent_logout',
+			'intval'
+		);
+	}
+
+	/**
+	 * Network options
+	 * Save the network options items here in the network admin  
+	 * since the Settings API does not work for the network admin
+	 */
+	public function update_network_settings(){
+		check_admin_referer( self::ID . '_options-options');
+		
+		$fields = array(
+			self::ID . '_idle_time',
+			self::ID . '_idle_message',
+			self::ID . '_silent_logout'
+		);
+
+		$_POST[self::ID . '_idle_time'] = (int) $_POST[self::ID . '_idle_time'];
+		if($_POST[self::ID . '_idle_time'] < 60)
+			$_POST[self::ID . '_idle_time'] = self::default_idle_time;
+
+		foreach($fields as $option_name){
+			if(isset($_POST[$option_name])){
+				$value = wp_unslash($_POST[$option_name]);
+				update_site_option($option_name, $value);
+			}
+		}
+		if(!isset($_POST[self::ID . '_silent_logout'])){
+			update_site_option(self::ID . '_silent_logout', 0);
+		}
+		wp_redirect( add_query_arg( array('updated'=>'true', 'page' => self::ID . '_options'), network_admin_url( 'settings.php' ) ) );
+		exit();
 	}
 
 	/**
@@ -242,8 +320,8 @@ class WP_Idle_Logout {
 	 *
 	 */
 	public function render_idle_time_option() {
-		echo '<input type="text" name="' . self::ID . '_idle_time" class="small-text" value="' . get_option(self::ID . '_idle_time') . '" />';
-		echo '<p class="description">How long (in seconds) should users be idle for before being logged out?</p>';
+		echo '<input type="number" min="60" name="' . self::ID . '_idle_time" class="small-text" value="' . get_site_option(self::ID . '_idle_time') . '" />';
+		echo '<p class="description">How long (in seconds) should users be idle for before being logged out? <small>Minimum time 60 seconds</small></</p>';
 	}
 
 	/**
@@ -252,8 +330,13 @@ class WP_Idle_Logout {
 	 *
 	 */
 	public function render_idle_message_option() {
-		echo '<textarea name="' . self::ID . '_idle_message" class="regular-text" rows="5" cols="50">' . get_option(self::ID . '_idle_message') . ' </textarea>';
+		echo '<textarea name="' . self::ID . '_idle_message" class="regular-text" rows="5" cols="50">' . get_site_option(self::ID . '_idle_message') . ' </textarea>';
 		echo '<p class="description">Overrides the default message shown to idle users when redirected to the login screen.</p>';
+	}
+
+	public function render_silent_logout_option(){	
+		echo '<label><input type="checkbox" value=1 name="' . self::ID . '_silent_logout"  '.checked(get_site_option(self::ID . '_silent_logout'),1,false).' > Logout idle users silently</label>';
+		echo '<p class="description">If checked user\'s WordPress session will be destroyed without being redirected to the idle message on the login screen.</p>';
 	}
 }
 
