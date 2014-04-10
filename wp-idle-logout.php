@@ -131,12 +131,12 @@ class WP_Idle_Logout {
 					$this->clear_activity_meta( $user_id );
 					wp_set_current_user(0);
 					
-					if(get_site_option(self::ID . '_silent_logout' == 0)){
+					if(get_site_option(self::ID . '_silent_logout') == 0){
 						wp_redirect( wp_login_url() . '?idle=1' );
 						exit;
 					}
 				} else {
-					if(is_admin() && DOING_AJAX && $_REQUEST['action'] == 'heartbeat' )
+					if(is_admin() && defined('DOING_AJAX') && DOING_AJAX && $_REQUEST['action'] == 'heartbeat' )
 						return;
 					
 					update_user_meta( $user_id, self::ID . '_last_active_time', time() );
