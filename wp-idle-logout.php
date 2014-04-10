@@ -41,7 +41,7 @@ class WP_Idle_Logout {
 	const default_idle_message = 'You have been logged out due to inactivity.';
 
 	/**
-	 * Default idle message
+	 * Default silent logout option
 	 */
 	const default_silent_logout = 0;
 
@@ -136,8 +136,8 @@ class WP_Idle_Logout {
 						exit;
 					}
 				} else {
-					if(is_admin() && defined('DOING_AJAX') && DOING_AJAX && $_REQUEST['action'] == 'heartbeat' )
-						return;
+					if(is_admin() && defined('DOING_AJAX') && DOING_AJAX && $_REQUEST['action'] == 'heartbeat' ) 
+						return; // do not update if doing the heartbeat request in the admin
 					
 					update_user_meta( $user_id, self::ID . '_last_active_time', time() );
 				}
@@ -340,6 +340,11 @@ class WP_Idle_Logout {
 		echo '<p class="description">Overrides the default message shown to idle users when redirected to the login screen.</p>';
 	}
 
+	/**
+	 * Admin options
+	 * Render silent logout option
+	 *
+	 */
 	public function render_silent_logout_option(){	
 		echo '<label><input type="checkbox" value=1 name="' . self::ID . '_silent_logout"  '.checked(get_site_option(self::ID . '_silent_logout'),1,false).' > Logout idle users silently</label>';
 		echo '<p class="description">If checked user\'s WordPress session will be destroyed without being redirected to the idle message on the login screen.</p>';
