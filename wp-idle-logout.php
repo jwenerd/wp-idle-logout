@@ -51,7 +51,7 @@ class WP_Idle_Logout {
 	 */
 	public function __construct() {;
 		add_action( 'wp_login', array(&$this, 'login_key_refresh'), 10, 2 );
-		add_action( 'init', array(&$this, 'check_for_inactivity') );
+		add_action( 'init', array(&$this, 'check_for_inactivity'));
 		add_action( 'clear_auth_cookie', array(&$this, 'clear_activity_meta') );
 		add_filter( 'login_message', array(&$this, 'idle_message') );
 
@@ -128,6 +128,8 @@ class WP_Idle_Logout {
 				if ( (int) $time + $this->get_idle_time_setting() < time() ) {				
 					wp_clear_auth_cookie();
 					$this->clear_activity_meta( $user_id );
+					wp_set_current_user(0);
+					
 					if(get_site_option(self::ID . '_silent_logout' == 0)){
 						wp_redirect( wp_login_url() . '?idle=1' );
 						exit;
