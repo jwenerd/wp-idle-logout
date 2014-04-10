@@ -121,6 +121,7 @@ class WP_Idle_Logout {
 	 */
 	public function check_for_inactivity() {
 		if ( is_user_logged_in() ) {
+
 			$user_id = get_current_user_id();
 			$time = get_user_meta( $user_id, self::ID . '_last_active_time', true );
 
@@ -135,6 +136,9 @@ class WP_Idle_Logout {
 						exit;
 					}
 				} else {
+					if(is_admin() && DOING_AJAX && $_REQUEST['action'] == 'heartbeat' )
+						return;
+					
 					update_user_meta( $user_id, self::ID . '_last_active_time', time() );
 				}
 			} else {
