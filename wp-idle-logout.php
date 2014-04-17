@@ -98,14 +98,12 @@ class WP_Idle_Logout {
 	/**
 	 * Refreshes the meta key on login
 	 *
-	 * Tests if the user is logged in on 'init'.
-	 * If true, checks if the 'last_active_time' meta is set.
-	 * If it isn't, the meta is created for the current time.
-	 * If it is, the timestamp is checked against the inactivity period.
+	 * Adds initial last active time on 'wp_login'.
 	 *
 	 */
 	public function login_key_refresh( $user_login, $user ) {
 
+		$this->clear_activity_meta($user->ID);
 		update_user_meta( $user->ID, self::ID . '_last_active_time', time() );
 
 	}
@@ -137,12 +135,13 @@ class WP_Idle_Logout {
 					}
 				} else {
 					if(is_admin() && defined('DOING_AJAX') && DOING_AJAX && $_REQUEST['action'] == 'heartbeat' ) 
-						return; // do not update if doing the heartbeat request in the admin
+						return; // do not update last active time if doing the heartbeat request in the admin
 					
+					$this->clear_activity_meta($user_id);
 					update_user_meta( $user_id, self::ID . '_last_active_time', time() );
 				}
 			} else {
-				delete_user_meta( $user_id, self::ID . '_last_active_time' );
+				$this->clear_activity_meta($user_id);
 				update_user_meta( $user_id, self::ID . '_last_active_time', time() );
 			}
 		}
@@ -232,6 +231,7 @@ class WP_Idle_Logout {
 	 *
 	 */
 	public function initialize_options() {
+
 		add_settings_section(
 			self::ID . '_options_section',
 			null,
