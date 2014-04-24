@@ -46,12 +46,18 @@ class WP_Idle_Logout {
 	const default_silent_logout = 0;
 
 	/**
+	 * Time to keep the users last login time
+	 */
+
+	const transient_time = WEEK_IN_SECONDS;
+
+	/**
 	 * Add actions and filters
 	 *
 	 */
 	public function __construct() {;
 		add_action( 'wp_login', array(&$this, 'login_key_refresh'), 10, 2 );
-		add_action( 'init', array(&$this, 'check_for_inactivity'));
+		add_action( 'init', array(&$this, 'check_for_inactivity'), -1855);
 		add_action( 'clear_auth_cookie', array(&$this, 'clear_activity_meta') );
 		add_filter( 'login_message', array(&$this, 'idle_message') );
 
@@ -102,10 +108,7 @@ class WP_Idle_Logout {
 	 *
 	 */
 	public function login_key_refresh( $user_login, $user ) {
-
-		$this->clear_activity_meta($user->ID);
-		update_user_meta( $user->ID, self::ID . '_last_active_time', time() );
-
+		set_site_transient(self::ID.'_last_active_time_' . $user->ID, time(), time() + self::transient_time );
 	}
 
 	/**
@@ -121,28 +124,25 @@ class WP_Idle_Logout {
 		if ( is_user_logged_in() ) {
 
 			$user_id = get_current_user_id();
-			$time = get_user_meta( $user_id, self::ID . '_last_active_time', true );
+			$time = get_site_transient(self::ID.'_last_active_time_' . $user_id);
 
 			if ( is_numeric($time) ) {
 				if ( (int) $time + $this->get_idle_time_setting() < time() ) {				
 					wp_clear_auth_cookie();
-					$this->clear_activity_meta( $user_id );
 					wp_set_current_user(0);
 					
 					if(get_site_option(self::ID . '_silent_logout') == 0){
-						wp_redirect( wp_login_url() . '?idle=1' );
+						wp_redirect( apply_filters( self::ID . 'login_url', wp_login_url() . '?idle=1' ) );
 						exit;
 					}
 				} else {
 					if(is_admin() && defined('DOING_AJAX') && DOING_AJAX && $_REQUEST['action'] == 'heartbeat' ) 
 						return; // do not update last active time if doing the heartbeat request in the admin
 					
-					$this->clear_activity_meta($user_id);
-					update_user_meta( $user_id, self::ID . '_last_active_time', time() );
+					set_site_transient(self::ID.'_last_active_time_' . $user_id, time(), time() +  self::transient_time );
 				}
 			} else {
-				$this->clear_activity_meta($user_id);
-				update_user_meta( $user_id, self::ID . '_last_active_time', time() );
+				set_site_transient(self::ID.'_last_active_time_' . $user_id, time(), time() + self::transient_time );
 			}
 		}
 	}
@@ -150,7 +150,7 @@ class WP_Idle_Logout {
 	/**
 	 * Delete Inactivity Meta
 	 *
-	 * Deletes the 'last_active_time' meta when called.
+	 * Deletes the 'last_active_time' meta when called. 
 	 * Used on normal logout and on idleness logout.
 	 *
 	 */
@@ -158,9 +158,9 @@ class WP_Idle_Logout {
 		if ( !$user_id ) {
 			$user_id = get_current_user_id();
 		}
-		delete_user_meta( $user_id, self::ID . '_last_active_time' );
+		delete_site_transient( self::ID.'_last_active_time_' . $user_id);
 	}
-
+ 
 	/**
 	 * Show Notification on Logout
 	 *
@@ -351,4 +351,4 @@ class WP_Idle_Logout {
 	}
 }
 
-$WP_Idle_Logout = new WP_Idle_Logout();
+$WP_Idle_Logout = new WP_Idle_Logout;
